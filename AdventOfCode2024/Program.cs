@@ -69,18 +69,29 @@ while (input != null && input.Length > 0 && input.ToLower() != "quit" && input.T
                 {
                     Console.WriteLine($"Safe report count: {output}");
                 }
-
-                // Do the second part
-                /*output = Dec1.ProcessSecondChallenge(input_parts[1], "   ", 2);
-
-                if (output > 0)
-                {
-                    Console.WriteLine($"Similarity Score: {output}");
-                }*/
             }
             else 
             {
                 Console.WriteLine("Missing input file name");
+            }
+            break;
+        case "puzzle_3":
+        case "p3":
+            
+            string input_file = "inputs/dec3.dat";
+            if (input_parts.Length > 1) 
+            {
+                input_file = input_parts[1];
+            }
+
+            try
+            {
+                var output = Dec3.ProcessChallenge(input_file);
+                Console.WriteLine($"Mul output: {output}");
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine($"Error processing: {ex.Message}.  Stack Trace: {ex.StackTrace}");
             }
             break;
         case "clear":
