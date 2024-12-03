@@ -19,11 +19,12 @@ public static class Dec3
                 int runningTotal = 0;
                 int intNextChar;
                 var stateMachine = new StateMachine();
-                string fullCommand = "mul(";
+                string[] validCommands = ["mul(", "do(", "don't("];
                 string currentCommand = "";
                 string firstOperand = "";
                 string secondOperand = "";
                 int position = 0;
+                bool enabledMul = true;
                 while ((intNextChar = reader.Read()) != -1)
                 {
                     position++;
@@ -35,107 +36,150 @@ public static class Dec3
                         firstOperand = "";
                         secondOperand = "";
                     }
-                    else if (stateMachine.CurrentState == State.CompleteCommandFound)
+                    else if (stateMachine.CurrentState == State.Complete_Command_Found)
                     {
-                        int firstOp;
-                        int secondOp;
-
-                        if (!int.TryParse(firstOperand, out firstOp))
+                        switch (currentCommand)
                         {
-                            throw new Exception($"Error trying to parse first operand {firstOperand}.  Current position is {position}");
-                        }
-                        if (!int.TryParse(secondOperand, out secondOp))
-                        {
-                            throw new Exception($"Error trying to parse first operand {secondOperand}.  Current position is {position}");
-                        }
-                        runningTotal += (firstOp * secondOp);
-                        Console.WriteLine($"Found operation, firstOp={firstOperand}, secondOp={secondOperand}, runningTotal={runningTotal}");
+                            case "mul(":
+                                int firstOp;
+                                int secondOp;
 
-                        currentCommand = "";
-                        firstOperand = "";
-                        secondOperand = "";
+                                if (!int.TryParse(firstOperand, out firstOp))
+                                {
+                                    throw new Exception($"Error trying to parse first operand {firstOperand}.  Current position is {position}");
+                                }
+                                if (!int.TryParse(secondOperand, out secondOp))
+                                {
+                                    throw new Exception($"Error trying to parse first operand {secondOperand}.  Current position is {position}");
+                                }
 
+                                if (enabledMul)
+                                {
+                                    runningTotal += (firstOp * secondOp);
+                                    Console.WriteLine($"Found operation, firstOp={firstOperand}, secondOp={secondOperand}, runningTotal={runningTotal}");
+                                }
+                                else 
+                                {
+                                    Console.WriteLine($"Mul Disabled *** Found operation, firstOp={firstOperand}, secondOp={secondOperand}, runningTotal={runningTotal}");
+                                }
+                                currentCommand = "";
+                                firstOperand = "";
+                                secondOperand = "";
+                                break;
+                            case "do(":
+                                enabledMul = true;
+                                break;
+                            case "don't(":
+                                //enabledMul = false;
+                                break;
+                            default:
+                                throw new Exception($"Invalid command idenfied {currentCommand}");
+                        }
                         stateMachine.MoveNext(Trigger.Processed_Complete_Command);
                     }
                     
                     char nextChar = (char)intNextChar;
                     
-                    if (stateMachine.CurrentState == State.Searching && nextChar == 'm') 
+                    switch (stateMachine.CurrentState)
                     {
-                        stateMachine.MoveNext(Trigger.Found_m);
-                        currentCommand += nextChar;
-                    }
-                    else if (stateMachine.CurrentState != State.Searching) 
-                    {
-                        switch (stateMachine.CurrentState)
-                        {
-                            case State.Command:
-                                if (nextChar == fullCommand.ToCharArray()[currentCommand.Length])
+                        case State.Searching:
+                            {
+                                currentCommand += nextChar;
+                                string validatedCommand = ValidateCommandFragment(validCommands, currentCommand);
+                                if (!string.IsNullOrEmpty(validatedCommand))
                                 {
-                                    currentCommand += nextChar;
+                                    stateMachine.MoveNext(Trigger.Found_Valid_Command_Start);
+                                }
+                                else 
+                                {
+                                    stateMachine.MoveNext(Trigger.Invalid_Value);
+                                }
+                            }
+                            break;
+                        case State.Command_Building:
+                            {
+                                currentCommand += nextChar;
+                                string validatedCommand = ValidateCommandFragment(validCommands, currentCommand);
+                                if (!string.IsNullOrEmpty(validatedCommand))
+                                {
                                     // If we have the whole command, trigger statemachine and move on
-                                    if (currentCommand == fullCommand)
+                                    if (currentCommand == validatedCommand)
                                     {
-                                        stateMachine.MoveNext(Trigger.Found_Open_Paren);
+                                        if (currentCommand == "mul(")
+                                        {
+                                            stateMachine.MoveNext(Trigger.Found_Command_With_Operands);
+                                        }
+                                        else 
+                                        {
+                                            stateMachine.MoveNext(Trigger.Found_Command_No_Operands);
+                                        }
                                     }
                                 }
                                 else 
                                 {
                                     stateMachine.MoveNext(Trigger.Invalid_Value);
                                 }
-                                break;
-                            case State.FirstOperand:
-                                if (nextChar == ',')
+                            }
+                            break;
+                        case State.First_Operand:
+                            if (nextChar == ',')
+                            {
+                                if (firstOperand.Length > 0)
                                 {
-                                    if (firstOperand.Length > 0)
-                                    {
-                                        stateMachine.MoveNext(Trigger.Found_Comma);
-                                    }
-                                    else 
-                                    {
-                                        stateMachine.MoveNext(Trigger.Invalid_Value);
-                                    }
+                                    stateMachine.MoveNext(Trigger.Found_Comma);
                                 }
                                 else 
                                 {
-                                    if (char.IsNumber(nextChar))
-                                    {
-                                        firstOperand += nextChar;
-                                    }
-                                    else 
-                                    {
-                                        stateMachine.MoveNext(Trigger.Invalid_Value);
-                                    }
+                                    stateMachine.MoveNext(Trigger.Invalid_Value);
                                 }
-                                break;
-                            case State.SecondOperand:
-                                if (nextChar == ')')
+                            }
+                            else 
+                            {
+                                if (char.IsNumber(nextChar))
                                 {
-                                    if (secondOperand.Length > 0)
-                                    {
-                                        stateMachine.MoveNext(Trigger.Found_Close_Paren);
-                                    }
-                                    else 
-                                    {
-                                        stateMachine.MoveNext(Trigger.Invalid_Value);
-                                    }
+                                    firstOperand += nextChar;
                                 }
                                 else 
                                 {
-                                    if (char.IsNumber(nextChar))
-                                    {
-                                        secondOperand += nextChar;
-                                    }
-                                    else 
-                                    {
-                                        stateMachine.MoveNext(Trigger.Invalid_Value);
-                                    }
+                                    stateMachine.MoveNext(Trigger.Invalid_Value);
                                 }
-                                break;
-                        }
+                            }
+                            break;
+                        case State.Second_Operand:
+                            if (nextChar == ')')
+                            {
+                                if (secondOperand.Length > 0)
+                                {
+                                    stateMachine.MoveNext(Trigger.Found_Close_Paren);
+                                }
+                                else 
+                                {
+                                    stateMachine.MoveNext(Trigger.Invalid_Value);
+                                }
+                            }
+                            else 
+                            {
+                                if (char.IsNumber(nextChar))
+                                {
+                                    secondOperand += nextChar;
+                                }
+                                else 
+                                {
+                                    stateMachine.MoveNext(Trigger.Invalid_Value);
+                                }
+                            }
+                            break;
+                        case State.No_Operands:
+                            if (nextChar == ')')
+                            {
+                                stateMachine.MoveNext(Trigger.Found_Close_Paren);
+                            }
+                            else 
+                            {
+                                stateMachine.MoveNext(Trigger.Invalid_Value);
+                            }
+                            break;
                     }
-
-                    
                 }
 
                 
@@ -149,19 +193,36 @@ public static class Dec3
         }
     }
 
+    // Check for valid command
+    // return empty if it is not
+    // otherwise return the first complete command this matches
+    public static string ValidateCommandFragment(string[] validCommands, string currentCommand)
+    {
+        foreach(string command in validCommands)
+        {
+            if (command.StartsWith(currentCommand))
+            {
+                return command;
+            }
+        }
+        return "";
+    }
+
     public enum State
     {
         Searching,
-        Command,
-        FirstOperand,
-        SecondOperand,
-        CompleteCommandFound,
+        Command_Building,
+        First_Operand,
+        Second_Operand,
+        No_Operands,
+        Complete_Command_Found
     }
 
     public enum Trigger
     {
-        Found_m,
-        Found_Open_Paren,
+        Found_Valid_Command_Start,
+        Found_Command_No_Operands,
+        Found_Command_With_Operands,
         Found_Comma,
         Found_Close_Paren,
         Processed_Complete_Command,
@@ -178,14 +239,13 @@ public static class Dec3
             _currentState = State.Searching;
             _transitions = new Dictionary<(State, Trigger), State>
             {
-                { (State.Searching, Trigger.Found_m), State.Command },
-                { (State.Command, Trigger.Found_Open_Paren), State.FirstOperand },
-                { (State.FirstOperand, Trigger.Found_Comma), State.SecondOperand },
-                { (State.SecondOperand, Trigger.Found_Close_Paren), State.CompleteCommandFound },
-                { (State.CompleteCommandFound, Trigger.Processed_Complete_Command), State.Searching },
-                { (State.Command, Trigger.Invalid_Value), State.Searching },
-                { (State.FirstOperand, Trigger.Invalid_Value), State.Searching },
-                { (State.SecondOperand, Trigger.Invalid_Value), State.Searching },
+                { (State.Searching, Trigger.Found_Valid_Command_Start), State.Command_Building },
+                { (State.Command_Building, Trigger.Found_Command_With_Operands), State.First_Operand },
+                { (State.Command_Building, Trigger.Found_Command_No_Operands), State.No_Operands },
+                { (State.First_Operand, Trigger.Found_Comma), State.Second_Operand },
+                { (State.Second_Operand, Trigger.Found_Close_Paren), State.Complete_Command_Found },
+                { (State.No_Operands, Trigger.Found_Close_Paren), State.Complete_Command_Found },
+                { (State.Complete_Command_Found, Trigger.Processed_Complete_Command), State.Searching },
             };
         }
 
@@ -195,6 +255,10 @@ public static class Dec3
             {
                 _currentState = nextState;
                 //Console.WriteLine($"State changed to {_currentState}");
+            }
+            else if (trigger == Trigger.Invalid_Value)
+            {
+                _currentState = State.Searching;
             }
             else
             {
