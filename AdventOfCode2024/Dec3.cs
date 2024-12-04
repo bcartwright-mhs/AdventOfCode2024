@@ -62,20 +62,20 @@ public static class Dec3
                                 {
                                     Console.WriteLine($"Mul Disabled *** Found operation, firstOp={firstOperand}, secondOp={secondOperand}, runningTotal={runningTotal}");
                                 }
-                                currentCommand = "";
-                                firstOperand = "";
-                                secondOperand = "";
                                 break;
                             case "do(":
                                 enabledMul = true;
                                 break;
                             case "don't(":
-                                //enabledMul = false;
+                                enabledMul = false;
                                 break;
                             default:
                                 throw new Exception($"Invalid command idenfied {currentCommand}");
                         }
                         stateMachine.MoveNext(Trigger.Processed_Complete_Command);
+                        currentCommand = "";
+                        firstOperand = "";
+                        secondOperand = "";
                     }
                     
                     char nextChar = (char)intNextChar;
